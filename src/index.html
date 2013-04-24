@@ -8,21 +8,8 @@
 <body>
 
 	<div class="container" ng-app="ngRaven">
-		<div ng-controller="ListCtrl">
-			<table class="table-striped table">
-				<thead>
-					<tr>
-						<th>DBs</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr ng-repeat="item in items">
-						<td>{{item}}</td>
-					</tr>
-				</tbody>
-			</table>
-
-		</div>
+		<div ng-view></div>
+		
 	</div>
 
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.0.1/angular.min.js"/></script>
