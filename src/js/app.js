@@ -16,30 +16,83 @@ ngRaven.config(function($routeProvider){
 		})
 });
 
-ngRaven.factory("Raven", function($http){
-	var self = this;
-	self.host = 'http://localhost\:8088';
 
-	self.databases = function(name){
-		if(!name){
-			return $http.get(self.host+'/databases');
+
+ngRaven.factory("Raven", function($http){
+	var raven = this;
+	raven.host = 'http://localhost\:8088';
+
+	var Database = function (name){
+		var currentDatabase = name,
+		    Doc = function(data, id){
+			    var actualId = id ? id : data["@metadata"]["@id"];
+			    var actualName = data.Name ? data.Name : data.name;
+			    actualName = actualName ? actualName : actualId;
+			    console.log(actualName)
+				var docReturnObject = {
+					name: actualName,
+					object: data,
+					id: actualId
+				};
+				docReturnObject._save = function(data, callback){
+					if(docReturnObject.id){
+						$http.put(raven.host+'/databases/'+currentDatabase+'/docs/'+id, data, {
+							headers: { 'accept': 'application/json' }
+						}).success(callback);
+					}
+				};
+				return docReturnObject;
+		},
+		getDocs = function(/* id, callback */){
+			var success= function(){}, id;
+
+			if(typeof arguments[0] === 'string')
+			{
+				id = arguments[0];
+			}
+			if(typeof arguments[0] === 'function'){
+				success = arguments[0];
+			}
+			if(arguments[1]){
+				id = arguments[0];
+				success = arguments[1];
+			}
+			if(id){
+				$http.get(raven.host+'/databases/'+currentDatabase+'/docs/'+id).success(function(data){
+					success(new Doc(data, id));
+				});
+			}
+			else{
+				$http.get(raven.host+'/databases/'+currentDatabase+'/docs').success(function(data){
+					var mappedItems = _.map(data, function(item){
+						return new Doc(item);	
+					});
+				success(mappedItems);
+			});
+			}
 		}
-		else{
-			return $http.get(self.host+'/databases/'+name+'/docs');
+
+		return {
+			name: name,
+			docs: getDocs
 		}
 	}
-	self.doc = function(db, id){
-		return $http.get(self.host+'/databases/'+db+'/docs/'+id);
-	}
-	self.save = function(db, id, data){
-		return $http.put(self.host+'/databases/'+db+'/docs/'+id, data, {
-			headers: { 'accept': 'application/json' }
+
+	raven.databases = function(success){
+		$http.get(raven.host+'/databases').success(function(databases){
+			success(_.map(databases, function(name){
+				return new Database(name);
+			}));
 		});
 	}
+
+	raven.database = function(name){
+		return new Database(name);		
+	}
+
 	return {
-		databases: self.databases,
-		doc: self.doc,
-		save: self.save
+		databases: raven.databases,
+		database: raven.database
 	}
 	
 });
@@ -48,45 +101,38 @@ ngRaven.controller('DocCtrl', function($scope, $routeParams, Raven){
 	console.log($routeParams);
 	var editor;
 	var renderEditor = function(){
-		    editor = ace.edit("ace-editor");
-		    ace.config.set("workerPath", "/lib/ace/"); 
+	    editor = ace.edit("ace-editor");
+	    ace.config.set("workerPath", "/lib/ace/"); 
 	    editor.setTheme("ace/theme/monokai");
 	    editor.getSession().setMode("ace/mode/json");
 	    console.log('rendering editor');
 	}
-	Raven.doc($routeParams.name, $routeParams.id).success(function(data){
+	Raven.database($routeParams.name).docs($routeParams.id, function(data){
 		$scope.doc = data;
-		editor.setValue(JSON.stringify($scope.doc, null, 2));
+		editor.setValue(JSON.stringify($scope.doc.object, null, 2));
 	});
 
 	$scope.save = function(){
 		var object = JSON.parse(editor.getValue());
-		Raven.save($routeParams.name, $routeParams.id, object);
+		
+		$scope.doc._save(object, function(){
+			alert('saved!');
+		});
 	}
 
 	renderEditor();
 });
 
 ngRaven.controller('ListCtrl', function($scope, Raven){
-	Raven.databases().success(function(data){
+	Raven.databases(function(data){
 		$scope.items = data;
-		console.log(data);
-	});
-	
+	});	
 });
 
 ngRaven.controller("DocsCtrl", function($scope, Raven, $routeParams){
-	console.log('loading docs for '+$routeParams.name);
 	$scope.database = $routeParams.name;
-	Raven.databases($routeParams.name).success(function(data){
-		var mappedItems = _.map(data, function(item){
-			console.log(item);
-			console.log(item["@metadata"]["@id"]);
-			return {
-				name: item.Name,
-				details: '#/database/'+$routeParams.name+'/docs/'+item["@metadata"]["@id"]
-			};
-		});
-		$scope.docs = mappedItems;
+
+	Raven.database($scope.database).docs(function(data){
+		$scope.docs = data;
 	})
 });
