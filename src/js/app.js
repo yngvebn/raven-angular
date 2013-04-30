@@ -12,7 +12,10 @@ ngRaven.config(function($routeProvider){
 		})
 		.when("/database/:name/docs/:id", {
 			templateUrl: "views/doc.html",
-			controller: "DocCtrl"
+			controller: "EditDocCtrl"
+		}).when("/database/:name/docs/:id", {
+			templateUrl: "views/doc.html",
+			controller: "NewDocCtrl"
 		})
 });
 
@@ -43,9 +46,13 @@ ngRaven.factory("Raven", function($http){
 				};
 				return docReturnObject;
 		},
-		getDocs = function(/* id, callback */){
+		docs = function(/* id, callback */){
 			var success= function(){}, id;
-
+			if(typeof argument[0] === 'object'){ // add
+				$http.put(raven.host+'/databases/'+currentDatabase+'/docs/', argument[0]).success(function(data){
+					success(new Doc(data, id));
+				});
+			}
 			if(typeof arguments[0] === 'string')
 			{
 				id = arguments[0];
@@ -74,7 +81,7 @@ ngRaven.factory("Raven", function($http){
 
 		return {
 			name: name,
-			docs: getDocs
+			docs: docs
 		}
 	}
 
@@ -97,8 +104,7 @@ ngRaven.factory("Raven", function($http){
 	
 });
 
-ngRaven.controller('DocCtrl', function($scope, $routeParams, Raven){
-	console.log($routeParams);
+ngRaven.controller('EditDocCtrl', function($scope, $routeParams, Raven){
 	var editor;
 	var renderEditor = function(){
 	    editor = ace.edit("ace-editor");
@@ -111,7 +117,7 @@ ngRaven.controller('DocCtrl', function($scope, $routeParams, Raven){
 		$scope.doc = data;
 		editor.setValue(JSON.stringify($scope.doc.object, null, 2));
 	});
-
+	$scope.actionText = 'Save';
 	$scope.save = function(){
 		var object = JSON.parse(editor.getValue());
 		
@@ -122,6 +128,30 @@ ngRaven.controller('DocCtrl', function($scope, $routeParams, Raven){
 
 	renderEditor();
 });
+
+
+ngRaven.controller('DocCtrl', function($scope, $routeParams, Raven){
+	var editor;
+	var renderEditor = function(){
+	    editor = ace.edit("ace-editor");
+	    ace.config.set("workerPath", "/lib/ace/"); 
+	    editor.setTheme("ace/theme/monokai");
+	    editor.getSession().setMode("ace/mode/json");
+	    console.log('rendering editor');
+	}
+	
+	$scope.actionText = 'Save';
+	$scope.save = function(){
+		var object = JSON.parse(editor.getValue());
+		Raven.database()
+		$scope.doc._save(object, function(){
+			alert('saved!');
+		});
+	}
+
+	renderEditor();
+});
+
 
 ngRaven.controller('ListCtrl', function($scope, Raven){
 	Raven.databases(function(data){
